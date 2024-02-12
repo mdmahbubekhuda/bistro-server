@@ -29,21 +29,18 @@ async function run() {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
 
-        // menu
-        const menuCollection = client.db("bistroDB").collection("menu");
+        // users
+        const userCollection = client.db('bistroDB').collection('users')
 
-        app.get('/menu', async (req, res) => {
-            const result = await menuCollection.find().toArray()
+        app.post('/users', async (req, res) => {
+            const user = req.body
+            const query = { email: user.email }
+            const existingUser = await userCollection.findOne(query)
+            if (existingUser) return res.send({ message: 'user already exist', insertedId: null })
+            const result = await userCollection.insertOne(user)
             res.send(result)
         })
 
-        // review
-        const reviewsCollection = client.db("bistroDB").collection("reviews");
-
-        app.get('/reviews', async (req, res) => {
-            const result = await reviewsCollection.find().toArray()
-            res.send(result)
-        })
 
         // cart
         const cartCollection = client.db("bistroDB").collection('carts')
@@ -67,6 +64,24 @@ async function run() {
             const result = await cartCollection.deleteOne(query)
             res.send(result)
         })
+
+
+        // menu
+        const menuCollection = client.db("bistroDB").collection("menu");
+
+        app.get('/menu', async (req, res) => {
+            const result = await menuCollection.find().toArray()
+            res.send(result)
+        })
+
+        // review
+        const reviewsCollection = client.db("bistroDB").collection("reviews");
+
+        app.get('/reviews', async (req, res) => {
+            const result = await reviewsCollection.find().toArray()
+            res.send(result)
+        })
+
 
 
         // Send a ping to confirm a successful connection
