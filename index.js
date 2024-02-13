@@ -1,20 +1,41 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken')
+const cookieParser = require('cookie-parser')
 require('dotenv').config()
+
 
 const app = express()
 const port = process.env.PORT || 5000
 
 // middleware
 app.use(express.json())
-app.use(cors())
+app.use(cors({
+    origin: ['http://localhost:5173'],
+    credentials: true
+}))
+app.use(cookieParser())
+
+// custom middlewares
+const logger = (req, res, next) => {
+
+}
+
+const verifiedToken = (req, res, next) => {
+    const token = req?.cookies?.['access-token']
+    console.log(token)
+    if (!token) return res.sendStatus(401)
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) return res.sendStatus(401)
+        req.decoded = decoded
+        next()
+    })
+}
 
 
 // mongoDB
-
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.slhzfxc.mongodb.net/?retryWrites=true&w=majority`;
-
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
     serverApi: {
@@ -29,10 +50,22 @@ async function run() {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
 
+        // jwt - create access-token
+        app.post('/jwt', (req, res) => {
+            const user = req.body
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
+            res.cookie('access-token', token, { httpOnly: true, secure: true, sameSite: 'none' }).send({ success: true })
+        })
+
+        // jwt - remove access token
+        app.post('/jwt/remove', (req, res) => {
+            res.clearCookie('access-token', { maxAge: 0 }).send({ success: true })
+        })
+
         // users
         const userCollection = client.db('bistroDB').collection('users')
 
-        app.get('/users', async (req, res) => {
+        app.get('/users', verifiedToken, async (req, res) => {
             const result = await userCollection.find().toArray()
             res.send(result)
         })
@@ -42,7 +75,7 @@ async function run() {
             const user = req.body
             const query = { email: user.email }
             const existingUser = await userCollection.findOne(query)
-            if (existingUser) return res.send({ message: 'user already exist', insertedId: null })
+            if (existingUser) return res.send({ message: 'user already exist', insertedId: 0 })
             const result = await userCollection.insertOne(user)
             res.send(result)
         })
