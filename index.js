@@ -18,15 +18,15 @@ app.use(cookieParser())
 
 // custom middlewares
 const logger = (req, res, next) => {
-
+    console.log(req.method, req.url)
+    next()
 }
 
 const verifiedToken = (req, res, next) => {
     const token = req?.cookies?.['access-token']
-    console.log(token)
-    if (!token) return res.sendStatus(401)
+    if (!token) return res.status(401).send({ message: 'forbidden access' })
     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) return res.sendStatus(401)
+        if (err) return res.status(401).send({ message: 'forbidden access' })
         req.decoded = decoded
         next()
     })
@@ -55,12 +55,15 @@ async function run() {
             const user = req.body
             const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
             res.cookie('access-token', token, { httpOnly: true, secure: true, sameSite: 'none' }).send({ success: true })
+
         })
 
         // jwt - remove access token
         app.post('/jwt/remove', (req, res) => {
             res.clearCookie('access-token', { maxAge: 0 }).send({ success: true })
         })
+
+
 
         // users
         const userCollection = client.db('bistroDB').collection('users')
