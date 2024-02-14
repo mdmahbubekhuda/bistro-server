@@ -24,13 +24,14 @@ const logger = (req, res, next) => {
 
 const verifiedToken = (req, res, next) => {
     const token = req?.cookies?.['access-token']
-    if (!token) return res.status(401).send({ message: 'forbidden access' })
+    if (!token) return res.status(401).send({ message: 'unauthorized access' })
     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) return res.status(401).send({ message: 'forbidden access' })
+        if (err) return res.status(401).send({ message: 'unauthorized access' })
         req.decoded = decoded
         next()
     })
 }
+
 
 
 // mongoDB
@@ -55,7 +56,6 @@ async function run() {
             const user = req.body
             const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
             res.cookie('access-token', token, { httpOnly: true, secure: true, sameSite: 'none' }).send({ success: true })
-
         })
 
         // jwt - remove access token
@@ -63,12 +63,34 @@ async function run() {
             res.clearCookie('access-token', { maxAge: 0 }).send({ success: true })
         })
 
-
-
-        // users
+        // users collection
         const userCollection = client.db('bistroDB').collection('users')
 
-        app.get('/users', verifiedToken, async (req, res) => {
+        // verify admin middleware *** must use after verifiedToken ***
+        const verifiedAdmin = async (req, res, next) => {
+            const secretMail = req.decoded.userEmail
+            const query = { email: secretMail }
+            const user = await userCollection.findOne(query)
+            const isAdmin = user?.role === 'admin'
+            if (!isAdmin) return res.status(403).send({ message: 'forbidden access' })
+            next()
+        }
+
+        // get admin role
+        app.get('/users/admin', verifiedToken, async (req, res) => {
+            // validate token email with logged user email
+            const email = req.query?.email
+            if (email !== req.decoded.userEmail) return res.status(403).send({ message: 'forbidden access' })
+
+            // check user role for admin
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            const admin = user?.role === "admin"
+            res.send({ admin })
+        })
+
+        // load all users
+        app.get('/users', verifiedToken, verifiedAdmin, async (req, res) => {
             const result = await userCollection.find().toArray()
             res.send(result)
         })
@@ -78,12 +100,12 @@ async function run() {
             const user = req.body
             const query = { email: user.email }
             const existingUser = await userCollection.findOne(query)
-            if (existingUser) return res.send({ message: 'user already exist', insertedId: 0 })
+            if (existingUser) return res.send({ message: 'user already exist', userExist: 1 })
             const result = await userCollection.insertOne(user)
             res.send(result)
         })
 
-        app.patch('/users/admin/:id', async (req, res) => {
+        app.patch('/users/admin/:id', verifiedToken, verifiedAdmin, async (req, res) => {
             const id = req.params.id
             const filter = { _id: new ObjectId(id) }
             const updatedDoc = {
@@ -95,7 +117,7 @@ async function run() {
             res.send(result)
         })
 
-        app.delete('/users/:id', async (req, res) => {
+        app.delete('/users/:id', verifiedToken, verifiedAdmin, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
             const result = await userCollection.deleteOne(query)
