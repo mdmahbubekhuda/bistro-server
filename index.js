@@ -22,15 +22,7 @@ const logger = (req, res, next) => {
     next()
 }
 
-const verifiedToken = (req, res, next) => {
-    const token = req?.cookies?.['access-token']
-    if (!token) return res.status(401).send({ message: 'unauthorized access' })
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) return res.status(401).send({ message: 'unauthorized access' })
-        req.decoded = decoded
-        next()
-    })
-}
+
 
 
 
@@ -50,6 +42,18 @@ async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
+
+
+        // jwt - verify token middleware
+        const verifiedToken = (req, res, next) => {
+            const token = req?.cookies?.['access-token']
+            if (!token) return res.status(401).send({ message: 'unauthorized access' })
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+                if (err) return res.status(401).send({ message: 'unauthorized access' })
+                req.decoded = decoded
+                next()
+            })
+        }
 
         // jwt - create access-token
         app.post('/jwt', (req, res) => {
@@ -76,7 +80,7 @@ async function run() {
             next()
         }
 
-        // get admin role
+        // check admin role - (admin)
         app.get('/users/admin', verifiedToken, async (req, res) => {
             // validate token email with logged user email
             const email = req.query?.email
@@ -153,6 +157,12 @@ async function run() {
 
         app.get('/menu', async (req, res) => {
             const result = await menuCollection.find().toArray()
+            res.send(result)
+        })
+
+        app.post('/menu', verifiedToken, verifiedAdmin, async (req, res) => {
+            const itemInfo = req.body
+            const result = await menuCollection.insertOne(itemInfo)
             res.send(result)
         })
 
