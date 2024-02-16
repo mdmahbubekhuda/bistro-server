@@ -37,7 +37,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
 
 
         // jwt - verify token middleware
@@ -55,7 +55,7 @@ async function run() {
         app.post('/jwt', (req, res) => {
             const user = req.body
             const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
-            res.cookie('access-token', token, { httpOnly: true, secure: false, sameSite: 'lax' }).send({ success: true })
+            res.cookie('access-token', token, { httpOnly: true, secure: true, sameSite: 'none' }).send({ success: true })
         })
 
         // jwt - remove access token
