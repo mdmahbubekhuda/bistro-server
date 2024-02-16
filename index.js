@@ -22,10 +22,6 @@ const logger = (req, res, next) => {
     next()
 }
 
-
-
-
-
 // mongoDB
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.slhzfxc.mongodb.net/?retryWrites=true&w=majority`;
@@ -59,7 +55,7 @@ async function run() {
         app.post('/jwt', (req, res) => {
             const user = req.body
             const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
-            res.cookie('access-token', token, { httpOnly: true, secure: true, sameSite: 'none' }).send({ success: true })
+            res.cookie('access-token', token, { httpOnly: true, secure: false, sameSite: 'lax' }).send({ success: true })
         })
 
         // jwt - remove access token
@@ -90,6 +86,7 @@ async function run() {
             const query = { email: email }
             const user = await userCollection.findOne(query)
             const admin = user?.role === "admin"
+
             res.send({ admin })
         })
 
@@ -163,6 +160,22 @@ async function run() {
         app.post('/menu', verifiedToken, verifiedAdmin, async (req, res) => {
             const itemInfo = req.body
             const result = await menuCollection.insertOne(itemInfo)
+            res.send(result)
+        })
+
+        app.patch('/menu/:id', verifiedToken, verifiedAdmin, async (req, res) => {
+            const id = req.params.id
+            const doc = req.body
+            const filter = { _id: new ObjectId(id) }
+            const updateDoc = { $set: doc }
+            const result = await menuCollection.updateOne(filter, updateDoc)
+            res.send(result)
+        })
+
+        app.delete('/menu/:id', verifiedToken, verifiedAdmin, async (req, res) => {
+            const id = req.params.id
+            const query = { _id: new ObjectId(id) }
+            const result = await menuCollection.deleteOne(query)
             res.send(result)
         })
 
